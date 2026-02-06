@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
 
 jobs:
   test:
@@ -12,27 +12,21 @@ jobs:
 
       - name: Run tests
         id: tests
-        run: docker compose up --build --abort-on-container-exit --exit-code-from tests
         continue-on-error: true
+        run: docker compose up --build --abort-on-container-exit --exit-code-from tests
 
       - name: Create result file
         run: |
-          mkdir -p artifacts
-          if [ "${{ steps.tests.outcome }}" == "success" ]; then
-            touch artifacts/succeeded
-          else
-            touch artifacts/fail
-          fi
+          mkdir artifacts
+          [ "${{ steps.tests.outcome }}" = "success" ] && touch artifacts/succeeded || touch artifacts/fail
 
       - uses: actions/upload-artifact@v4
         with:
           name: test-results
           path: artifacts/
 
-      - name: Cleanup
+      - run: docker compose down || true
         if: always()
-        run: docker compose down || true
 
-      - name: Exit with test result
+      - run: exit 1
         if: steps.tests.outcome == 'failure'
-        run: exit 1

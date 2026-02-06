@@ -6,7 +6,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   test:
@@ -50,7 +49,7 @@ jobs:
         with:
           context: ./nginx
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/nginx:latest
+          tags: ghcr.io/ohadazn/nginx:latest
 
       - name: Install cosign
         if: steps.tests.outcome == 'success'
@@ -60,7 +59,7 @@ jobs:
         if: steps.tests.outcome == 'success'
         env:
           DIGEST: ${{ steps.push.outputs.digest }}
-        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/nginx@${DIGEST}
+        run: cosign sign --yes ghcr.io/ohadazn/nginx@${DIGEST}
 
       - run: docker compose down || true
         if: always()

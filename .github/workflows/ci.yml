@@ -4,9 +4,18 @@ on:
   push:
     branches: [main]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write  # For cosign
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,8 +34,39 @@ jobs:
           name: test-results
           path: artifacts/
 
+      # Push and sign image only if tests pass
+      - name: Log in to GitHub Container Registry
+        if: steps.tests.outcome == 'success'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push nginx image
+        if: steps.tests.outcome == 'success'
+        id: push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./nginx
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/nginx:latest
+
+      - name: Install cosign
+        if: steps.tests.outcome == 'success'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with cosign
+        if: steps.tests.outcome == 'success'
+        env:
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: cosign sign --yes ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/nginx@${DIGEST}
+
       - run: docker compose down || true
         if: always()
+
+      - run: exit 1
+        if: steps.tests.outcome == 'failure'
 
       - run: exit 1
         if: steps.tests.outcome == 'failure'

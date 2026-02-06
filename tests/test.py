@@ -1,6 +1,6 @@
 """
 Test script for nginx endpoints.
-- Port 8080: expects HTTP 200 with HTML content
+- Port 8080: expects HTTP 200 with HTML content + rate limiting
 - Port 8081: expects HTTP 418 error response
 """
 
@@ -55,6 +55,30 @@ def test_error_endpoint():
         return False
 
 
+def test_rate_limiting():
+    """Test rate limiting returns 429 when exceeded."""
+    url = f"http://{NGINX_HOST}:8080/"
+    got_429 = False
+    
+    # Send 20 rapid requests - should trigger rate limit (5 req/s + burst of 10)
+    for i in range(20):
+        try:
+            urllib.request.urlopen(url, timeout=1)
+        except urllib.error.HTTPError as e:
+            if e.code == 429:
+                got_429 = True
+                break
+        except Exception:
+            pass
+    
+    if got_429:
+        print("Rate limit: PASS (429 received)")
+        return True
+    else:
+        print("Rate limit: FAIL (no 429 received)")
+        return False
+
+
 if __name__ == "__main__":
     print("Testing nginx endpoints...")
     
@@ -62,7 +86,7 @@ if __name__ == "__main__":
         print("FAIL: nginx not ready")
         sys.exit(1)
     
-    results = [test_html_endpoint(), test_error_endpoint()]
+    results = [test_html_endpoint(), test_error_endpoint(), test_rate_limiting()]
     
     if all(results):
         print("All tests passed")

@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run tests
+        id: tests
+        run: docker compose up --build --abort-on-container-exit --exit-code-from tests
+        continue-on-error: true
+
+      - name: Create result file
+        run: |
+          mkdir -p artifacts
+          if [ "${{ steps.tests.outcome }}" == "success" ]; then
+            touch artifacts/succeeded
+          else
+            touch artifacts/fail
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down || true
+
+      - name: Exit with test result
+        if: steps.tests.outcome == 'failure'
+        run: exit 1

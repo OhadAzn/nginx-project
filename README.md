@@ -1,100 +1,67 @@
-# DevOps Intern - Home Assignment
+# Project Overview
 
-Two Docker containers: Nginx server with two endpoints (+ rate limiting), and a Python test container that verifies them.
+This project is built around three main parts. The goal was to create a simple web server that is fully automated, easy to run, and secure from the start.
 
-## How to Run
+**Nginx**:
+ Acts as the web server. It serves basic HTML on port 8080 and hard-coded text on port 8081.
 
-```bash
-docker compose up --build --abort-on-container-exit --exit-code-from tests
-```
+**Docker**: 
+We use containers to package the code. This makes it easy to run the project locally and ensures the CI process works exactly like our local environment.
 
-- Exit code 0 = tests passed
-- Exit code 1 = tests failed
+**Docker Compose**: 
+This is our orchestration tool. It lets us define the "desired state" of the app and run everything (build and start) with just one command.
 
-## What's Inside
+**CI Process**:
+ Every time code is pushed to GitHub, a workflow starts. it builds the image, runs tests, and uses **Cosign** to sign the image for security.
 
-**Nginx container** (Ubuntu-based):
-- Port 8080: returns custom HTML page (HTTP 200) with rate limiting
-- Port 8081: returns error response (HTTP 418)
+---
 
-**Test container** (Python Alpine):
-- Sends requests to both nginx endpoints
-- Verifies response codes and content
-- Tests rate limiting (expects 429 when limit exceeded)
-- Exits non-zero if any test fails
+# Best Practices
 
-## Rate Limiting
+We didn't just want it to work; we wanted it to follow professional DevOps standards:
 
-Rate limiting is configured on port 8080 to prevent abuse.
+**Multi-stage Dockerfile**: We used a two-stage build. The first stage prepares the files, and the second stage only contains the Nginx runtime. This keeps the final image small and secure because it doesn't include unnecessary build tools.
 
-**Current settings:**
-- Rate: 5 requests per second per IP
-- Burst: 10 requests (allows small spikes)
-- Response: HTTP 429 when exceeded
+**Rate Limiting**: We configured Nginx to limit traffic to 5 requests per second per IP. This protects the server from being overwhelmed by too many requests.
 
-**How it works:**
-1. Nginx tracks each client IP address
-2. Allows 5 requests per second sustained
-3. Burst allows 10 extra requests to queue
-4. After burst is exhausted, returns 429 Too Many Requests
+**Image Signing (Cosign)**: Security is a priority. We sign our images in the CI pipeline so we can 
+verify that the image running in production is exactly the one we built and tested.
 
-**To change the rate limit**, edit `nginx/nginx.conf`:
-```nginx
-# Change rate (requests per second)
-limit_req_zone $binary_remote_addr zone=limit:10m rate=10r/s;  # 10 req/s
+**Environment Variables**: We used variables for the registry and image names, making the pipeline easy to update without changing the core code.
 
-# Change burst (spike allowance)
-limit_req zone=limit burst=20 nodelay;  # Allow 20 burst
-```
+**Automated Cleanup**: The CI pipeline is designed to clean up after itself (Docker Compose down) and save test results as artifacts even if the build fails.
 
-## Project Structure
+---
 
-```
-.
-├── nginx/
-│   ├── Dockerfile      # Multi-stage, Ubuntu + nginx
-│   ├── nginx.conf      # Two server blocks + rate limit
-│   └── html/
-│       └── index.html
-├── tests/
-│   ├── Dockerfile      # Python Alpine
-│   └── test.py
-├── docker-compose.yml
-└── .github/workflows/ci.yml
-```
+# How to use this project
 
-## CI/CD
+### Local Setup
 
-GitHub Actions workflow:
-1. Builds both Docker images
-2. Runs tests via docker compose
-3. Creates artifact (`succeeded` or `fail` file)
-4. If tests pass: pushes nginx image to GitHub Container Registry
-5. Signs image with cosign (keyless, using GitHub OIDC)
-
-## Design Notes
-
-**Multi-stage build**: Separates file preparation from runtime.
-
-**Image sizes**: Nginx uses Ubuntu (required) but cleans apt cache. Tests use Python Alpine (~50MB).
-
-**Rate limiting**: Protects against abuse, returns 429 when exceeded.
-
-**Cosign**: Signs images using keyless signing (no keys to manage).
-
-## Manual Testing
+If you have Docker and Docker Compose installed, you can get everything running with one command:
 
 ```bash
-# Start nginx only
-docker compose up nginx --build -d
+docker compose up --build
 
-# Test endpoints
-curl http://localhost:8080/
-curl http://localhost:8081/
-
-# Test rate limiting (run many times quickly)
-for i in {1..20}; do curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/; done
-
-# Cleanup
-docker compose down
 ```
+
+### Accessing the Server
+
+* **Main Site (HTML)**: Go to `http://localhost:8080`
+* **Test Port (Text)**: Go to `http://localhost:8081`
+
+### CI/CD Workflow
+
+The automation is handled by GitHub Actions (found in `.github/workflows/ci.yml`). It follows these steps:
+
+1. **Test**: Runs the containers and checks if they work.
+2. **Build & Push**: If tests pass, it builds the production image and pushes it to GHCR.
+3. **Sign**: Signs the image using a secure identity token.
+
+---
+
+# Project Files
+
+* **Dockerfile**: The multi-stage build configuration.
+* **nginx.conf**: The server settings, including ports and rate limits.
+* **docker-compose.yml**: The setup for local development and testing.
+* **ci.yml**: The GitHub Actions logic.

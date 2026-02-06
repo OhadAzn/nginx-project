@@ -1,79 +1,47 @@
 name: CI
-
-on:
-  push:
-    branches: [main]
+on: [push]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ghcr.io/ohadazn/nginx
+  IMAGE: ghcr.io/${{ github.actor }}/nginx:latest
 
 jobs:
-  test-and-deploy:
+  test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name:  Run Tests
+        run: docker compose up --build --abort-on-container-exit --exit-code-from tests
+
+      - name:  Archive Results
+        if: always()
+        run: |
+          mkdir out
+          [ "${{ job.status }}" == "success" ] && touch out/succeeded || touch out/fail
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: test-status, path: out/ }
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: test
+    permissions: { packages: write, id-token: write }
 
     steps:
       - uses: actions/checkout@v4
 
-      # 1. Run tests
-      - name: Run tests
-        id: tests
-        run: docker compose up --build --abort-on-container-exit --exit-code-from tests
-        continue-on-error: true
-
-      # 2. Create result artifact
-      - name: Handle Artifacts
-        if: always()
+      - name:  Login, Build, Push & Sign
         run: |
-          mkdir artifacts
-          if [ "${{ steps.tests.outcome }}" == "success" ]; then
-            touch artifacts/succeeded
-          else
-            touch artifacts/fail
-          fi
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: artifacts/
-
-      # 3. Deploy (only if tests pass)
-      - name: Log in to GHCR
-        if: steps.tests.outcome == 'success'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        if: steps.tests.outcome == 'success'
-        id: push
-        uses: docker/build-push-action@v5
-        with:
-          context: ./nginx
-          push: true
-          tags: ${{ env.IMAGE_NAME }}:latest
-
-      - name: Install Cosign
-        if: steps.tests.outcome == 'success'
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign image
-        if: steps.tests.outcome == 'success'
-        run: cosign sign --yes ${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
-
-      # 4. Cleanup and final status
-      - name: Final Check
-        if: always()
-        run: |
-          docker compose down
-          if [ "${{ steps.tests.outcome }}" == "failure" ]; then
-            echo "Tests failed, failing the job."
-            exit 1
-          fi
+          # 1. Login to Registry
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
+          
+          # 2. Build and Push
+          docker build -t ${{ env.IMAGE }} ./nginx
+          docker push ${{ env.IMAGE }}
+          
+          # 3. Install Cosign and Sign
+          LATEST_VERSION=$(curl -s https://api.github.com/repos/sigstore/cosign/releases/latest | grep 'tag_name' | cut -d\" -f4)
+          curl -L https://github.com/sigstore/cosign/releases/download/$LATEST_VERSION/cosign-linux-amd64 -o cosign && chmod +x cosign
+          ./cosign sign --yes ${{ env.IMAGE }}

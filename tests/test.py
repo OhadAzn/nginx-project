@@ -46,7 +46,7 @@ def wait_for_nginx():
 
 
 def test_http_redirect():
-    """Test port 8080 redirects to HTTPS (301)."""
+    """ Test port 8080 redirects to HTTPS (301)."""
     # Use low-level request to check redirect without following
     import http.client
     conn = http.client.HTTPConnection(NGINX_HOST, 8080, timeout=5)

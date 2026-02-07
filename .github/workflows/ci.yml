@@ -3,7 +3,6 @@ on: [push]
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/${{ github.actor }}/nginx:latest
 
 jobs:
   test:
@@ -11,10 +10,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name:  Run Tests
+      - name: 🧪 Run Tests
         run: docker compose up --build --abort-on-container-exit --exit-code-from tests
 
-      - name:  Archive Results
+      - name: 📦 Archive Results
         if: always()
         run: |
           mkdir out
@@ -32,16 +31,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name:  Login, Build, Push & Sign
+      - name: 🚀 Login, Build, Push & Sign
+        env:
+          IMAGE: ghcr.io/${{ github.repository_owner }}/nginx:latest
         run: |
+          # Convert to lowercase
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          
           # 1. Login to Registry
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ${{ env.REGISTRY }} -u ${{ github.actor }} --password-stdin
           
           # 2. Build and Push
-          docker build -t ${{ env.IMAGE }} ./nginx
-          docker push ${{ env.IMAGE }}
+          docker build -t $IMAGE ./nginx
+          docker push $IMAGE
           
           # 3. Install Cosign and Sign
           LATEST_VERSION=$(curl -s https://api.github.com/repos/sigstore/cosign/releases/latest | grep 'tag_name' | cut -d\" -f4)
           curl -L https://github.com/sigstore/cosign/releases/download/$LATEST_VERSION/cosign-linux-amd64 -o cosign && chmod +x cosign
-          ./cosign sign --yes ${{ env.IMAGE }}
+          ./cosign sign --yes $IMAGE

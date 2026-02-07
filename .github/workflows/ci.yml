@@ -10,10 +10,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: 🧪 Run Tests
+      - name:  Run Tests
         run: docker compose up --build --abort-on-container-exit --exit-code-from tests
 
-      - name: 📦 Archive Results
+      - name:  Archive Results
         if: always()
         run: |
           mkdir out
@@ -31,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 🚀 Login, Build, Push & Sign
+      - name:  Login, Build, Push & Sign
         env:
           IMAGE: ghcr.io/${{ github.repository_owner }}/nginx:latest
         run: |

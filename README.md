@@ -1,35 +1,31 @@
 # Project Overview
 
+This project shows how to use Nginx as a secure web server (HTTPS) with DoS protection in a containerized environment. It also includes a CI/CD pipeline on GitHub that handles building, pushing, and running the project automatically.
 
-**Nginx**:
- Acts as the web server. It serves basic HTML on port 8080 and hard-coded text on port 8081.
+## Main Components
 
-**Docker**: 
-We use containers to package the code. This makes it easy to run the project locally and ensures the CI process works exactly like our local environment.
+**Nginx**: The web server. It uses port 8080 (HTTPS) for the main site and port 8081 for error testing.
 
-**Docker Compose**: 
-This is our orchestration tool. It lets us define the "desired state" of the app and run everything (build and start) with just one command.
+**Docker**: We use Docker to package the code so it runs the same way on every machine. The Nginx image is based on Ubuntu as required.
 
-**Automated Testing**
+**Docker Compose**: This tool manages the connection between the Nginx server and the test script. It lets you build and start everything with one command.
 
-We run a dedicated Test Container that automatically probes the Nginx server.
+**Automated Testing**: A dedicated Test Container that runs a script to:
+- Check Status: Verify that ports 8080 and 8081 return the correct status codes.
+- Test Rate Limit: Simulate a "flood" of requests to verify that Nginx correctly blocks them.
+- CI Integration: If any test fails, the GitHub pipeline stops automatically.
 
-Functional Checks: Standard HTTP GET requests to verify endpoints.
-
-DoS Attack Simulation: Rapid-fire requests to validate that the Rate Limiting actually blocks traffic.
-
-CI Integration: Thanks to the --exit-code-from tests flag, Docker Compose captures the script's result. If a test fails (Exit Code 1), GitHub Actions marks the step with a Red X and stops the entire pipeline. If it passes (Exit Code 0), the process continues to deployment.
-
-**CI Process**:
- Every time code is pushed to GitHub, a workflow starts. it builds the image, runs tests, and uses **Cosign** to sign the image for security.
-
-
+**CI Process**: Every time code is pushed to GitHub, a workflow starts. It builds the images, runs the tests, and uses Cosign to sign the images for security.
 
 ---
-# Advenced 
-Gnerate OpenSSL certificate- Using HTTPS to allow Authentication and Authorization, which prevents Man-in-the-Middle attacks. Generating the cert inside the container environment to allow portability.
 
-DoS Defense - Implemented rate limiting using Nginx to block DoS attacks, but making sure not to block when not needed and allowing bursts.
+# Advanced 
+
+**Generate OpenSSL Certificate**: Using HTTPS to allow Authentication and Authorization, which prevents Man-in-the-Middle attacks. Generating the cert inside the container environment to allow portability.
+
+**DoS Defense**: Implemented rate limiting using Nginx to block DoS attacks, but making sure not to block when not needed and allowing bursts.
+
+---
 
 # Best Practices
 

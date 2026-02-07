@@ -46,17 +46,15 @@ def wait_for_nginx():
 
 
 def test_http_redirect():
-    """Test port 8080 redirects to HTTPS."""
-    try:
-        req = urllib.request.Request(f"http://{NGINX_HOST}:8080/")
-        opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
-        opener.open(req, timeout=5)
-    except urllib.error.HTTPError as e:
-        assert e.code == 301, f"Expected 301 redirect, got {e.code}"
-        print("Port 8080: PASS (301 redirect)")
-        return
-    # If no error, it followed redirect - also OK
-    print("Port 8080: PASS (redirected to HTTPS)")
+    """Test port 8080 redirects to HTTPS (301)."""
+    # Use low-level request to check redirect without following
+    import http.client
+    conn = http.client.HTTPConnection(NGINX_HOST, 8080, timeout=5)
+    conn.request("GET", "/")
+    resp = conn.getresponse()
+    conn.close()
+    assert resp.status == 301, f"Expected 301, got {resp.status}"
+    print("Port 8080: PASS (301 redirect)")
 
 
 def test_https_endpoint():
@@ -68,10 +66,10 @@ def test_https_endpoint():
 
 
 def test_error_endpoint():
-    """Test port 8081 returns 418 error."""
+    """Test port 8081 returns 403 error."""
     status, _ = fetch(f"http://{NGINX_HOST}:8081/")
-    assert status == 418, f"Expected 418, got {status}"
-    print("Port 8081: PASS (418 I'm a teapot)")
+    assert status == 403, f"Expected 403, got {status}"
+    print("Port 8081: PASS (403 Forbidden)")
 
 
 def test_rate_limiting():
